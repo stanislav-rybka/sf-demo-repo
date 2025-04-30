@@ -1,0 +1,22 @@
+name: "Validate Pull Request"
+run-name: "Validate Pull Request (${{ github.actor }})"
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches:
+      - master
+      - develop
+
+jobs:
+  PerformMetadataAnalysis:
+    runs-on: ubuntu-latest
+    
+    name: "Perform Metadata Analysis"
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Initialize"
+        uses: ./.github/actions/init
