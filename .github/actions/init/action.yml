@@ -1,0 +1,50 @@
+name: "Initialization"
+
+inputs:
+  useCache:
+    description: Use cache?
+    type: boolean
+    default: true
+
+runs:
+  using: "composite"
+    
+  steps:
+    - if: ${{ inputs.useCache == 'true' }}
+      name: "Configure 'npm' Cache"
+      uses: actions/cache@v3
+      with:
+        path: ~/.npm
+        key: npm-${{ runner.os }}-${{ hashFiles('**/package.json') }}
+        restore-keys: |
+          npm-${{ runner.os }}
+
+    - name: "Print Environment Information"
+      shell: bash
+      run: |
+        echo "🖥️ Operating system: $(uname -a)"
+        echo "🔧 Shell: $SHELL"
+        echo "🏷️ Node version: $(node --version)"
+        echo "🏷️ npm version: $(npm --version)"
+
+    - name: "Install Salesforce CLI"
+      shell: bash
+      run: |
+        echo "⏳ Installing Salesforce CLI if no originally installed version is available ..."
+        npm install @salesforce/cli --global
+        echo "✅ Salesforce CLI '$(sf version)' is installed successfully."
+
+    - name: "Install Plugin - 'sfdx:sfdmu'"
+      shell: bash
+      env:
+        PLUGIN_VERSION: "latest"
+      run: |
+        # echo "⏳ Installing 'sfdmu' plugin if no originally installed version is available ..."
+        # (sf plugins | grep -i "sfdmu") || (echo "y" | sf plugins install sfdmu@$PLUGIN_VERSION)
+        # echo "✅ 'sfdmu' plugin is installed successfully."
+
+    - name: "Print Installed Salesforce Plugins"
+      shell: bash
+      run: |
+        echo "⏳ Checking installed sf plugins..."
+        sf plugins --core
