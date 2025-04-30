@@ -1,0 +1,87 @@
+name: "Authorize Salesforce Environment"
+
+inputs:
+  targetOrgAlias:
+    description: "Target environment alias"
+    type: string
+    required: true
+
+  targetOrgUrl:
+    description: "Target environment login URL"
+    type: string
+    default: "https://login.salesforce.com"
+
+  targetOrgUsername: 
+    description: "Target environment username"
+    type: string
+    default: "none"
+
+  targetOrgPassword:
+    description: "Target environment password"
+    type: string
+    default: "none"
+
+  targetOrgAuthUrl:
+    description: "Target environment authorization URL"
+    type: string
+    default: "none"
+
+outputs:
+  targetOrgAlias:
+    description: "Target environment alias"
+    value: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
+
+  targetOrgUsername:
+    description: "Target environment username"
+    value: ${{ steps.authorizeTargetOrg.outputs.targetOrgUsername }}
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: "Authorize Target Org"
+      id: authorizeTargetOrg
+      shell: bash
+      env:
+        AUTH_UTILS_SCRIPT_PATH: "scripts/bash/utils/sf_authorization.sh"
+        TARGET_ORG_ALIAS: ${{ inputs.targetOrgAlias }}
+        TARGET_ORG_URL: ${{ inputs.targetOrgUrl }}
+        TARGET_ORG_USERNAME: ${{ inputs.targetOrgUsername }}
+        TARGET_ORG_PASSWORD: ${{ inputs.targetOrgPassword }}
+        TARGET_ORG_AUTH_URL: ${{ inputs.targetOrgAuthUrl }}
+      run: |
+        # load functions to authorize SF environment in different ways
+        source "${AUTH_UTILS_SCRIPT_PATH}"
+
+
+        # check if target org credentials are provided
+        if [[ ${TARGET_ORG_USERNAME:+1} && "$TARGET_ORG_USERNAME" != "none" && \
+              ${TARGET_ORG_PASSWORD:+1} && "$TARGET_ORG_PASSWORD" != "none" ]] ; then
+
+          echo "⏳ Trying to authorize with provided target org username and password..."
+
+          authorizeWithCredentials \
+              "$TARGET_ORG_USERNAME" \
+              "$TARGET_ORG_PASSWORD" \
+              "TARGET_ORG_URL" \
+              "$TARGET_ORG_ALIAS"
+
+        # check if target org authorization URL is provided
+        elif [[ ${TARGET_ORG_AUTH_URL:+1} && "$TARGET_ORG_AUTH_URL" != "none" ]] ; then
+
+          echo "⏳ Trying to authorize with provided target org authorization URL..."
+
+          authorizeWithAuthUrl \
+              "$TARGET_ORG_AUTH_URL" \
+              "$TARGET_ORG_ALIAS"
+
+        else
+
+          echo "🚩 None of valid authorization params are provided. Authorization is not performed."
+
+        fi
+        
+
+        # set environment authorization details in outputs
+        echo "targetOrgAlias=$TARGET_ORG_ALIAS" >> $GITHUB_OUTPUT
+        echo "targetOrgUsername=$TARGET_ORG_USERNAME" >> $GITHUB_OUTPUT
