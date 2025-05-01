@@ -1,0 +1,210 @@
+name: "Deploy Metadata"
+
+inputs:
+  targetOrgUrl:
+    description: "Target environment login URL"
+    type: string
+
+  targetOrgAuthUrl: 
+    description: "Target environment authorization URL"
+    type: string
+    required: true
+
+  deltaDeployment:
+    description: "Indicates if all/only changed files are deployed"
+    type: boolean
+    default: false
+
+  targetDeltaCompareBranch:
+    description: "Name/SHA of the branch from which delta comparison is being generated"
+    type: string
+
+  deploymentMode:
+    description: "Deployment mode"
+    required: true
+    type: choice
+    default: "install"
+    options:
+      - install
+      - upgrade
+      - validateOnly
+      - validateWithTests
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: "Authorize Target Org"
+      id: authorizeTargetOrg
+      continue-on-error: false
+      uses: ./.github/actions/authorizeOrg
+      with:
+        targetOrgAlias: "targetOrg"
+        targetOrgUrl: ${{ inputs.targetOrgUrl }}
+        targetOrgAuthUrl: ${{ inputs.targetOrgAuthUrl }}
+
+    # This section contains logic related to FULL deployment
+
+    - if: ${{ inputs.deltaDeployment == 'false' }}
+      name: "Deploy All Metadata"
+      shell: bash
+      continue-on-error: false
+      env:
+          SOURCE_DIRECTORY: "force-app"
+          DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
+          TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
+      run: |
+        # TODO: profiles reconciliation
+
+        echo "⏳ Deploying all metadata with the "$DEPLOYMENT_MODE" mode..."
+
+        if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -d "$SOURCE_DIRECTORY" \
+              --dry-run \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="NoTestRun" \
+              -w 1000 \
+              --concise
+
+          echo "✅ Metadata deployment validation without tests is successfully completed"
+
+        elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -d "$SOURCE_DIRECTORY" \
+              --dry-run \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="RunLocalTests" \
+              -w 1000 \
+              --junit \
+              --concise
+
+          echo "✅ Metadata deployment validation with tests is successfully completed"
+
+        else
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -d "$SOURCE_DIRECTORY" \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="RunLocalTests" \
+              -w 1000 \
+              --junit \
+              --concise
+
+          echo "✅ Metadata deployment is successfully completed"
+
+        fi
+
+    # This section contains logic related to DELTA deployment
+
+    - if: ${{ inputs.deltaDeployment == 'true' }}
+      name: "Install Plugin - 'sfdx-git-delta'"
+      continue-on-error: false
+      shell: bash
+      env:
+        PLUGIN_VERSION: "stable"
+      run: |
+        # TODO: make a re-usable composite action to install sf plugins by provided name
+        echo "⏳ Installing 'sfdx-git-delta' plugin if no originally installed version is available..."
+
+        (sf plugins | grep -i "sfdx-git-delta") || (echo "y" | sf plugins install sfdx-git-delta@$PLUGIN_VERSION)
+
+        echo "✅ 'sfdx-git-delta' plugin is installed successfully"
+
+    - if: ${{ inputs.deltaDeployment == 'true' }}
+      name: "Deploy Modified Metadata"
+      shell: bash
+      continue-on-error: false
+      env:
+          DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
+          TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
+          TARGET_DELTA_COMPARE_BRANCH: ${{ inputs.targetDeltaCompareBranch }}
+          DEPLOY_MANIFEST_PATH: "package/package.xml"
+          DESTRUCTIVE_MANIFEST_PATH: "destructiveChanges/destructiveChanges.xml"
+      run: |
+        # TODO: profiles reconciliation
+
+        echo "⏳ Deploying only modified metadata with the "$DEPLOYMENT_MODE" mode..."
+
+        # generate package.xml and destructiveChanges.xml files containing only modified (i.e. delta) files
+        # this approach works when merge is squashed. Otherwise, try to incorporate another way to get "from" value
+        # ... --from "$(git merge-base HEAD $TARGET_DELTA_COMPARE_BRANCH)"
+        sf sgd source delta -o "." --to "HEAD" --from "$(git merge-base HEAD $TARGET_DELTA_COMPARE_BRANCH)" --ignore-whitespace
+
+        # Check if the command was successful
+        if [ $? -ne 0 ]; then
+
+          echo "❌ Delta generation failed."
+          exit 1
+
+        fi
+
+        # TODO: add more convenient way to show what items are to be deployed/deleted (e.g. post to step summary, etc.)
+        # temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
+        set +e
+
+        echo "👀 List of metadata to be deployed..."
+        grep -oP '(?<=<members>)(.*?)(?=</members>)' "$DEPLOY_MANIFEST_PATH"
+
+        echo ""
+        echo "👀 List of metadata to be removed..."
+        grep -oP '(?<=<members>)(.*?)(?=</members>)' "$DESTRUCTIVE_MANIFEST_PATH"
+
+        set -e
+
+
+        if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -x "$DEPLOY_MANIFEST_PATH" \
+              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
+              --dry-run \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="NoTestRun" \
+              -w 1000 \
+              --concise
+
+          echo "✅ Metadata deployment validation without tests is successfully completed"
+
+        elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -x "$DEPLOY_MANIFEST_PATH" \
+              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
+              --dry-run \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="RunLocalTests" \
+              -w 1000 \
+              --junit \
+              --concise
+
+          echo "✅ Metadata deployment validation with tests is successfully completed"
+
+        else
+
+          sf project deploy start \
+              -o "$TARGET_ORG_ALIAS" \
+              -x "$DEPLOY_MANIFEST_PATH" \
+              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
+              --ignore-conflicts \
+              --ignore-warnings \
+              --test-level="RunLocalTests" \
+              -w 1000 \
+              --junit \
+              --concise
+
+          echo "✅ Metadata deployment is successfully completed"
+
+        fi

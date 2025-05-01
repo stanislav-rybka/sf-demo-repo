@@ -11,7 +11,6 @@ on:
 jobs:
   PerformMetadataAnalysis:
     runs-on: ubuntu-latest
-    
     name: "Perform Metadata Analysis"
 
     steps:
@@ -30,3 +29,31 @@ jobs:
         uses: ./.github/actions/performFlowsAnalysis
         with:
           failWhenViolations: false
+
+  ValidateMetadataDeployment:
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Validate Metadata Deployment"
+    environment: "Staging"
+
+    env:
+      DEPLOYMENT_MODE: "validateWithTests"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Validate Deployment"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
