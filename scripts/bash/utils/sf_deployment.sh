@@ -28,7 +28,7 @@ function deployDeltaMetadata {
         --to "$DEST_BRANCH" \
         --from "$(git merge-base HEAD $SOURCE_BRANCH)"
 
-    # Check if the command was successful
+    # Check if the command was unsuccessful
     if [ $? -ne 0 ]; then
         echo "❌ Delta generation failed."
         exit 1
@@ -184,6 +184,9 @@ if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
         exit 1
     fi
 fi
+
+# Ensure the artifacts output directory exists
+mkdir -p "$ARTIFACTS_OUTPUT_DIR_PATH"
 
 # Check if the metadata should be deployed fully or partially
 if [[ "$DEPLOYMENT_TYPE" == "full" ]]; then
