@@ -10,16 +10,52 @@ DEPLOYMENT_MODE="validateWithTests"
 SOURCE_BRANCH="origin/develop"
 DEST_BRANCH="HEAD"
 ARTIFACTS_OUTPUT_DIR_PATH="scripts/deployment/artifacts"
-DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
-DESTRUCTIVE_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
 
 ########################## FUNCTIONS (BEGIN)
 
 function deployAllMetadata {
-  echo "Deployment of all metadata..."
+    local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package.xml"
+
+    # Generate package.xml file containing all files
+    sf project generate manifest \
+        -p force-app \
+        -n "package" \
+        -d "$ARTIFACTS_OUTPUT_DIR_PATH" \
+        -t package
+
+    # Check if the command was unsuccessful
+    if [ $? -ne 0 ]; then
+        echo "❌ Package.xml generation failed."
+        exit 1
+    fi
+
+    # Print artifacts content
+    printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
+
+    echo "⏳ Starting full deployment to $TARGET_ORG..."
+
+    if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
+
+        deployMetadata "validateOnly" "NoTestRun" "$DEPLOY_MANIFEST_PATH"
+        echo "✅ Metadata deployment validation without tests is successfully completed"
+
+    elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
+
+        deployMetadata "validateWithTests" "RunLocalTests" "$DEPLOY_MANIFEST_PATH"
+        echo "✅ Metadata deployment validation with tests is successfully completed"
+
+    elif [[ "${DEPLOYMENT_MODE}" == "deploy" ]] ; then
+
+        deployMetadata "deploy" "RunLocalTests" "$DEPLOY_MANIFEST_PATH"
+        echo "✅ Metadata deployment is successfully completed"
+
+    fi
 }
 
 function deployDeltaMetadata {
+    local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
+    local DESTRUCTIVE_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
+
     # Generate package.xml and destructiveChanges.xml files containing only modified files (i.e. delta)
     echo "👀 Comparing changes from $SOURCE_BRANCH to $DEST_BRANCH..."
 
@@ -48,17 +84,17 @@ function deployDeltaMetadata {
 
     if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
 
-        deployMetadata "validateOnly" "NoTestRun"
+        deployMetadata "validateOnly" "NoTestRun" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
         echo "✅ Metadata deployment validation without tests is successfully completed"
 
     elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
 
-        deployMetadata "validateWithTests" "RunLocalTests"
+        deployMetadata "validateWithTests" "RunLocalTests" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
         echo "✅ Metadata deployment validation with tests is successfully completed"
 
     elif [[ "${DEPLOYMENT_MODE}" == "deploy" ]] ; then
 
-        deployMetadata "deploy" "RunLocalTests"
+        deployMetadata "deploy" "RunLocalTests" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
         echo "✅ Metadata deployment is successfully completed"
 
     fi
@@ -115,6 +151,8 @@ function printDeploymentMetadata {
 function deployMetadata {
     local DEPLOY_MODE="$1"
     local TEST_LEVEL="$2"
+    local DEPLOY_MANIFEST_PATH="$3"
+    local DESTRUCTIVE_MANIFEST_PATH="$4"
     local DRY_RUN_FLAG=""
 
     # Add --dry-run flag for "validateOnly" and "validateWithTests" deployment modes
