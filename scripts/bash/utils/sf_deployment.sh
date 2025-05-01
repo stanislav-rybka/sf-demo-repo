@@ -66,7 +66,6 @@ function deployDeltaMetadata {
 
 # Function to extract and format metadata from XML
 function printDeploymentMetadata {
-
     local FILE_PATH="$1"
     local HEADER="$2"
 
@@ -81,7 +80,7 @@ function printDeploymentMetadata {
     echo "$HEADER"
     echo "--------------------------------------------------------"
 
-    awk '
+    local OUTPUT= $(awk '
         BEGIN { counter = 1 }  # Initialize the global counter
         /<types>/ { inside_types = 1 } 
         /<\/types>/ { inside_types = 0 } 
@@ -100,15 +99,20 @@ function printDeploymentMetadata {
                 m_count = 0; # Reset members count
             }
         }
-    ' "$FILE_PATH"
+    ' "$FILE_PATH")
+
+    # Check if OUTPUT is empty
+    if [ -z "$OUTPUT" ]; then
+        echo "No metadata entries are found..."
+    else
+        echo "$OUTPUT"
+    fi
 
     echo ""
-
 }
 
 # Function to deploy metadata
 function deployMetadata {
-
     local DEPLOY_MODE="$1"
     local TEST_LEVEL="$2"
     local DRY_RUN_FLAG=""
@@ -130,7 +134,6 @@ function deployMetadata {
         --junit \
         --concise \
         $DRY_RUN_FLAG  # Include dry-run flag if applicable
-
 }
 
 ########################## FUNCTIONS (END)
