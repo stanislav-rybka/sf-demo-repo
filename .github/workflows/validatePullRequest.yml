@@ -20,3 +20,13 @@ jobs:
       
       - name: "Initialize"
         uses: ./.github/actions/init
+
+      - name: "Perform Code Analysis"
+        uses: ./.github/actions/performCodeAnalysis
+        with:
+          failWhenViolations: true
+
+      - name: "Perform Flows Analysis"
+        uses: ./.github/actions/performFlowsAnalysis
+        with:
+          failWhenViolations: false
