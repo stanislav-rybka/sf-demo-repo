@@ -75,11 +75,11 @@ fi
 
 ########################## FUNCTIONS (BEGIN)
 
-deployAllMetadata() {
-
+function deployAllMetadata {
+  echo "Deployment of all metadata..."
 }
 
-deployDeltaMetadata() {
+function deployDeltaMetadata {
     # Generate package.xml and destructiveChanges.xml files containing only modified files (i.e. delta)
     echo "👀 Comparing changes from $SOURCE_BRANCH to $DEST_BRANCH..."
 
@@ -125,7 +125,7 @@ deployDeltaMetadata() {
 }
 
 # Function to extract and format metadata from XML
-printDeploymentMetadata() {
+function printDeploymentMetadata {
 
     local FILE_PATH="$1"
     local HEADER="$2"
@@ -167,7 +167,7 @@ printDeploymentMetadata() {
 }
 
 # Function to deploy metadata
-deployMetadata() {
+function deployMetadata {
 
     local DEPLOY_MODE="$1"
     local TEST_LEVEL="$2"
