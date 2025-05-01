@@ -39,7 +39,7 @@ jobs:
     env:
       DEPLOYMENT_MODE: "validateWithTests"
       TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
-      DELTA_DEPLOYMENT: true
+      DELTA_DEPLOYMENT: false
 
     steps:
       - name: "Checkout Code"
