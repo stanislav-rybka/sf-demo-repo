@@ -80,7 +80,7 @@ function printDeploymentMetadata {
     echo "$HEADER"
     echo "--------------------------------------------------------"
 
-    local OUTPUT= $(awk '
+    local OUTPUT=$(awk '
         BEGIN { counter = 1 }  # Initialize the global counter
         /<types>/ { inside_types = 1 } 
         /<\/types>/ { inside_types = 0 } 
