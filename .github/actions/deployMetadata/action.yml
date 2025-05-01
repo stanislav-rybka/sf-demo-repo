@@ -124,87 +124,21 @@ runs:
       shell: bash
       continue-on-error: false
       env:
+          DEPLOYMENT_UTILS_SCRIPT_PATH: "scripts/bash/utils/sf_deployment.sh"
           DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
+          DEPLOYMENT_TYPE: "delta"
           TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
           TARGET_DELTA_COMPARE_BRANCH: ${{ inputs.targetDeltaCompareBranch }}
+
           DEPLOY_MANIFEST_PATH: "package/package.xml"
           DESTRUCTIVE_MANIFEST_PATH: "destructiveChanges/destructiveChanges.xml"
       run: |
-        # TODO: profiles reconciliation
-
-        echo "⏳ Deploying only modified metadata with the "$DEPLOYMENT_MODE" mode..."
-
-        # generate package.xml and destructiveChanges.xml files containing only modified (i.e. delta) files
-        # this approach works when merge is squashed. Otherwise, try to incorporate another way to get "from" value
-        # ... --from "$(git merge-base HEAD $TARGET_DELTA_COMPARE_BRANCH)"
-        sf sgd source delta -o "." --to "HEAD" --from "$(git merge-base HEAD $TARGET_DELTA_COMPARE_BRANCH)" --ignore-whitespace
-
-        # Check if the command was successful
-        if [ $? -ne 0 ]; then
-
-          echo "❌ Delta generation failed."
-          exit 1
-
-        fi
-
-        # TODO: add more convenient way to show what items are to be deployed/deleted (e.g. post to step summary, etc.)
-        # temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
-        set +e
-
-        echo "👀 List of metadata to be deployed..."
-        grep -oP '(?<=<members>)(.*?)(?=</members>)' "$DEPLOY_MANIFEST_PATH"
-
-        echo ""
-        echo "👀 List of metadata to be removed..."
-        grep -oP '(?<=<members>)(.*?)(?=</members>)' "$DESTRUCTIVE_MANIFEST_PATH"
-
-        set -e
-
-
-        if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -x "$DEPLOY_MANIFEST_PATH" \
-              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
-              --dry-run \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="NoTestRun" \
-              -w 1000 \
-              --concise
-
-          echo "✅ Metadata deployment validation without tests is successfully completed"
-
-        elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -x "$DEPLOY_MANIFEST_PATH" \
-              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
-              --dry-run \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="RunLocalTests" \
-              -w 1000 \
-              --junit \
-              --concise
-
-          echo "✅ Metadata deployment validation with tests is successfully completed"
-
-        else
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -x "$DEPLOY_MANIFEST_PATH" \
-              --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="RunLocalTests" \
-              -w 1000 \
-              --junit \
-              --concise
-
-          echo "✅ Metadata deployment is successfully completed"
-
-        fi
+        # Making deployment script file executable
+        chmod +x $DEPLOYMENT_UTILS_SCRIPT_PATH
+        
+        # Executing deployment script
+        $DEPLOYMENT_UTILS_SCRIPT_PATH \
+            -o "$TARGET_ORG_ALIAS"
+            -s "origin/develop"
+            -m "$DEPLOYMENT_MODE"
+            -t "$DEPLOYMENT_TYPE"
