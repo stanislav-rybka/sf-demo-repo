@@ -20,8 +20,7 @@ function deployAllMetadata {
     sf project generate manifest \
         -p force-app \
         -n "package" \
-        -d "$ARTIFACTS_OUTPUT_DIR_PATH" \
-        -t package
+        -d "$ARTIFACTS_OUTPUT_DIR_PATH"
 
     # Check if the command was unsuccessful
     if [ $? -ne 0 ]; then
