@@ -34,79 +34,7 @@ runs:
   using: "composite"
 
   steps:
-    - name: "Authorize Target Org"
-      id: authorizeTargetOrg
-      continue-on-error: false
-      uses: ./.github/actions/authorizeOrg
-      with:
-        targetOrgAlias: "targetOrg"
-        targetOrgUrl: ${{ inputs.targetOrgUrl }}
-        targetOrgAuthUrl: ${{ inputs.targetOrgAuthUrl }}
-
-    # This section contains logic related to FULL deployment
-
-    - if: ${{ inputs.deltaDeployment == 'false' }}
-      name: "Deploy All Metadata"
-      shell: bash
-      continue-on-error: false
-      env:
-          SOURCE_DIRECTORY: "force-app"
-          DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
-          TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
-      run: |
-        # TODO: profiles reconciliation
-
-        echo "⏳ Deploying all metadata with the "$DEPLOYMENT_MODE" mode..."
-
-        if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -d "$SOURCE_DIRECTORY" \
-              --dry-run \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="NoTestRun" \
-              -w 1000 \
-              --concise
-
-          echo "✅ Metadata deployment validation without tests is successfully completed"
-
-        elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -d "$SOURCE_DIRECTORY" \
-              --dry-run \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="RunLocalTests" \
-              -w 1000 \
-              --junit \
-              --concise
-
-          echo "✅ Metadata deployment validation with tests is successfully completed"
-
-        else
-
-          sf project deploy start \
-              -o "$TARGET_ORG_ALIAS" \
-              -d "$SOURCE_DIRECTORY" \
-              --ignore-conflicts \
-              --ignore-warnings \
-              --test-level="RunLocalTests" \
-              -w 1000 \
-              --junit \
-              --concise
-
-          echo "✅ Metadata deployment is successfully completed"
-
-        fi
-
-    # This section contains logic related to DELTA deployment
-
-    - if: ${{ inputs.deltaDeployment == 'true' }}
-      name: "Install Plugin - 'sfdx-git-delta'"
+    - name: "Install Plugin - 'sfdx-git-delta'"
       continue-on-error: false
       shell: bash
       env:
@@ -119,26 +47,38 @@ runs:
 
         echo "✅ 'sfdx-git-delta' plugin is installed successfully"
 
-    - if: ${{ inputs.deltaDeployment == 'true' }}
-      name: "Deploy Modified Metadata"
+    - name: "Authorize Target Org"
+      id: authorizeTargetOrg
+      continue-on-error: false
+      uses: ./.github/actions/authorizeOrg
+      with:
+        targetOrgAlias: "targetOrg"
+        targetOrgUrl: ${{ inputs.targetOrgUrl }}
+        targetOrgAuthUrl: ${{ inputs.targetOrgAuthUrl }}
+
+    - name: "Deploy Metadata"
       shell: bash
       continue-on-error: false
       env:
-          DEPLOYMENT_UTILS_SCRIPT_PATH: "scripts/bash/utils/sf_deployment.sh"
+          SOURCE_DIRECTORY: "force-app"
           DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
-          DEPLOYMENT_TYPE: "delta"
+          DELTA_DEPLOYMENT: ${{ inputs.deltaDeployment }}
           TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
-          TARGET_DELTA_COMPARE_BRANCH: ${{ inputs.targetDeltaCompareBranch }}
-
-          DEPLOY_MANIFEST_PATH: "package/package.xml"
-          DESTRUCTIVE_MANIFEST_PATH: "destructiveChanges/destructiveChanges.xml"
       run: |
         # Making deployment script file executable
         chmod +x $DEPLOYMENT_UTILS_SCRIPT_PATH
+
+        DEPLOYMENT_TYPE="delta"
+
+        if [[ "${DELTA_DEPLOYMENT}" == "false" ]] ; then
+
+          DEPLOYMENT_TYPE="full"
+
+        fi
         
         # Executing deployment script
         $DEPLOYMENT_UTILS_SCRIPT_PATH \
-            -o "$TARGET_ORG_ALIAS"
-            -s "origin/develop"
-            -m "$DEPLOYMENT_MODE"
+            -o "$TARGET_ORG_ALIAS" \
+            -s "origin/develop" \
+            -m "$DEPLOYMENT_MODE" \
             -t "$DEPLOYMENT_TYPE"
