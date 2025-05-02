@@ -60,6 +60,7 @@ runs:
       shell: bash
       continue-on-error: false
       env:
+          DEPLOYMENT_UTILS_SCRIPT_PATH: "scripts/bash/utils/sf_deployment.sh"
           SOURCE_DIRECTORY: "force-app"
           DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
           DELTA_DEPLOYMENT: ${{ inputs.deltaDeployment }}
