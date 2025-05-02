@@ -1,0 +1,58 @@
+name: "Deploy Pull Request"
+run-name: "Deploy Pull Request (${{ github.actor }})"
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - develop
+
+jobs:
+  PerformMetadataAnalysis:
+    runs-on: ubuntu-latest
+    name: "Perform Metadata Analysis"
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Perform Code Analysis"
+        uses: ./.github/actions/performCodeAnalysis
+        with:
+          failWhenViolations: true
+
+      - name: "Perform Flows Analysis"
+        uses: ./.github/actions/performFlowsAnalysis
+        with:
+          failWhenViolations: false
+
+  DeployMetadata:
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Deploy Metadata"
+    environment: "Staging"
+
+    env:
+      DEPLOYMENT_MODE: "deploy"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Deploy"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
