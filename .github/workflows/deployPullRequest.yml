@@ -7,6 +7,7 @@ on:
     branches:
       - develop
       - uat
+      - master
 
 jobs:
   PerformMetadataAnalysis:
@@ -69,6 +70,35 @@ jobs:
     env:
       DEPLOYMENT_MODE: "deploy"
       TARGET_DELTA_COMPARE_BRANCH: "origin/uat"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Deploy"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
+
+  DeployMetadata_Production:
+    if: ${{ github.event.pull_request.base.ref == 'master' }}
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Deploy Metadata (Production)"
+    environment: "Production"
+
+    env:
+      DEPLOYMENT_MODE: "deploy"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/master"
       DELTA_DEPLOYMENT: true
 
     steps:
