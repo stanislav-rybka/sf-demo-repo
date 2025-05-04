@@ -143,10 +143,10 @@ function deploy_metadata {
     # Print deployment params
     echo "🚀 Deployment Params:"
     echo "--------------------------"
-    echo "✅ Deployment Type: '$DEPLOYMENT_TYPE'"
-    echo "✅ Deployment Mode: '$DEPLOYMENT_MODE'"
-    echo "✅ Test Level: '$test_level'"
-    echo "✅ Destructive Deployment: $destructive_deployment"
+    echo "🟣 Deployment Type: '$DEPLOYMENT_TYPE'"
+    echo "🟣 Deployment Mode: '$DEPLOYMENT_MODE'"
+    echo "🟣 Test Level: '$test_level'"
+    echo "🟣 Destructive Deployment: $destructive_deployment"
     echo "--------------------------"
     echo "⏳ Starting deployment to '$TARGET_ORG'..."
 

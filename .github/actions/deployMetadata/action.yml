@@ -42,9 +42,7 @@ runs:
       run: |
         # TODO: make a re-usable composite action to install sf plugins by provided name
         echo "⏳ Installing 'sfdx-git-delta' plugin if no originally installed version is available..."
-
         (sf plugins | grep -i "sfdx-git-delta") || (echo "y" | sf plugins install sfdx-git-delta@$PLUGIN_VERSION)
-
         echo "✅ 'sfdx-git-delta' plugin is installed successfully"
 
     - name: "Authorize Target Org"
@@ -64,22 +62,21 @@ runs:
           SOURCE_DIRECTORY: "force-app"
           DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
           DELTA_DEPLOYMENT: ${{ inputs.deltaDeployment }}
+          TARGET_DELTA_COMPARE_BRANCH: ${{ inputs.targetDeltaCompareBranch }}
           TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
       run: |
         # Making deployment script file executable
         chmod +x $DEPLOYMENT_UTILS_SCRIPT_PATH
 
-        DEPLOYMENT_TYPE="delta"
+        deployment_type="delta"
 
         if [[ "${DELTA_DEPLOYMENT}" == "false" ]] ; then
-
-          DEPLOYMENT_TYPE="full"
-
+          deployment_type="full"
         fi
         
         # Executing deployment script
         $DEPLOYMENT_UTILS_SCRIPT_PATH \
             -o "$TARGET_ORG_ALIAS" \
-            -s "origin/develop" \
+            -s "$TARGET_DELTA_COMPARE_BRANCH" \
             -m "$DEPLOYMENT_MODE" \
-            -t "$DEPLOYMENT_TYPE"
+            -t "$deployment_type"

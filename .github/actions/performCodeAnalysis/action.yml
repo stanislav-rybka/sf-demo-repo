@@ -32,9 +32,7 @@ runs:
         PLUGIN_VERSION: "latest"
       run: |
         echo "⏳ Installing 'sfdx-scanner' plugin if no originally installed version is available..."
-
         (sf plugins | grep -i "sfdx-scanner") || (echo "y" | sf plugins install @salesforce/sfdx-scanner@$PLUGIN_VERSION)
-
         echo "✅ 'sfdx-scanner' plugin is installed successfully"
 
     - name: "Run Salesforce Code Analyzer"
@@ -54,18 +52,18 @@ runs:
         ANALYSIS_SEV1_VIOLATIONS: ${{ steps.runCodeAnalyzer.outputs.num-sev1-violations }}
         ANALYSIS_TOTAL_VIOLATIONS: ${{ steps.runCodeAnalyzer.outputs.num-violations }}
       run: |
-        echo "Failure mode enabled: $FAILURE_MODE_ENABLED"
-        echo "Defined violations threshold: $VIOLATIONS_THRESHOLD"
-        echo "Analyzer exit code: $ANALYSIS_EXIT_CODE"
-        echo "Analyzer severity_1 violations: $ANALYSIS_SEV1_VIOLATIONS"
-        echo "Analyzer total violations: $ANALYSIS_TOTAL_VIOLATIONS"
+        echo "🟣 Failure mode enabled: $FAILURE_MODE_ENABLED"
+        echo "🟣 Defined violations threshold: $VIOLATIONS_THRESHOLD"
+        echo "🟣 Analyzer exit code: $ANALYSIS_EXIT_CODE"
+        echo "🟣 Analyzer 'severity 1' violations: $ANALYSIS_SEV1_VIOLATIONS"
+        echo "🟣 Analyzer total violations: $ANALYSIS_TOTAL_VIOLATIONS"
 
         if [[ "$FAILURE_MODE_ENABLED" == "true" ]] && \
            { [[ "$ANALYSIS_EXIT_CODE" -gt 0 ]] || \
              [[ "$ANALYSIS_SEV1_VIOLATIONS" -gt 0 ]] || \
              [[ "$ANALYSIS_TOTAL_VIOLATIONS" -gt "$VIOLATIONS_THRESHOLD" ]]; }; then
           
-          echo "❌ Failing the step execution due to reported code analysis violations. Please check more details in the summary."
+          echo "❌ ERROR: Failing the step execution due to reported code analysis violations. Please check more details in the summary."
           exit 1
 
         fi

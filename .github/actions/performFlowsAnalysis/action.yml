@@ -37,9 +37,7 @@ runs:
         PLUGIN_VERSION: "latest"
       run: |
         echo "⏳ Installing 'lightning-flow-scanner' plugin if no originally installed version is available..."
-
         (sf plugins | grep -i "lightning-flow-scanner") || (echo "y" | sf plugins install lightning-flow-scanner@$PLUGIN_VERSION)
-
         echo "✅ 'lightning-flow-scanner' plugin is installed successfully"
 
     - name: "Run Lightning Flow Scanner"
@@ -53,7 +51,7 @@ runs:
       run: |
         echo "⏳ Running 'lightning-flow-scanner' against '$PATH_TO_SCAN' path"
 
-        # temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
+        # Temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
         set +e
 
         sf flow scan \
@@ -61,17 +59,17 @@ runs:
             --failon="$FAILURE_THRESHOLD_LEVEL" \
             > "${REPORT_FILE_NAME}.txt"
 
-        # capturing the exit status of the 'sf flow scan' command
-        SCAN_RESULT_STATUS_CODE=$?
+        # Capturing the exit status of the 'sf flow scan' command
+        scan_result_status_code=$?
 
         set -e
 
         echo "✅ Execution of 'lightning-flow-scanner' is successfully completed"
 
-        # setting scan results into variables
-        echo "SCAN_RESULT_STATUS_CODE=$SCAN_RESULT_STATUS_CODE" >> $GITHUB_ENV
+        # Setting scan results into variables
+        echo "SCAN_RESULT_STATUS_CODE=$scan_result_status_code" >> $GITHUB_ENV
 
-        # printing scanner results into output
+        # Printing scanner results into output
         cat "${GITHUB_WORKSPACE}/${REPORT_FILE_NAME}.txt"
 
     - name: "Publish Scanner Results Artifact"
@@ -87,14 +85,12 @@ runs:
         PATH_TO_SCAN: ${{ inputs.pathToScan }}
         FAILURE_THRESHOLD_LEVEL: ${{ inputs.failureThresholdLevel }}
       run: |
-        echo "Failure mode enabled: $FAILURE_MODE_ENABLED"
-        echo "Defined path to scan: $PATH_TO_SCAN"
-        echo "Defined failure threshold level: $FAILURE_THRESHOLD_LEVEL"
-        echo "Analyzer exit code: $SCAN_RESULT_STATUS_CODE"
+        echo "🟣 Failure mode enabled: $FAILURE_MODE_ENABLED"
+        echo "🟣 Defined path to scan: $PATH_TO_SCAN"
+        echo "🟣 Defined failure threshold level: $FAILURE_THRESHOLD_LEVEL"
+        echo "🟣 Analyzer exit code: $SCAN_RESULT_STATUS_CODE"
 
         if [[ "$FAILURE_MODE_ENABLED" == "true" && SCAN_RESULT_STATUS_CODE -gt 0 ]] ; then
-
-          echo "❌ Failing the step execution due to reported code analysis violations."
+          echo "❌ ERROR: Failing the step execution due to reported code analysis violations. Please check more details in the summary."
           exit 1
-
         fi

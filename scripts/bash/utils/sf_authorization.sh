@@ -3,7 +3,7 @@
 # --------------------
 # Function to authorize into SF environment by provided org credentials
 # --------------------
-function authorizeWithCredentials {
+function authorize_with_credentials {
 
     local target_org_username=$1
     local target_org_password=$2
@@ -55,7 +55,7 @@ function authorizeWithCredentials {
 # --------------------
 # Authorization into SF environment by provided org authorization URL
 # --------------------
-function authorizeWithAuthUrl {
+function authorize_with_auth_url {
 
     local target_org_auth_url=$1
     local target_org_alias=$2
