@@ -6,6 +6,7 @@ ALLOWED_DEPLOYMENT_TYPES=("full" "delta")
 
 # Set variables with default values
 TARGET_ORG="target-org-alias"
+DEPLOYMENT_TYPE="delta"
 DEPLOYMENT_MODE="validateWithTests"
 SOURCE_DIR="force-app"
 SOURCE_BRANCH="origin/develop"
@@ -19,28 +20,22 @@ function validateInputs {
 
     # Check if sf CLI is installed
     if ! command -v sf &> /dev/null; then
-
         echo "❌ ERROR: Salesforce CLI (sf) is not installed. Please install it first."
         exit 1
-
     fi
 
     # Check if deployment mode is valid
     if [[ ! " ${ALLOWED_DEPLOYMENT_MODES[@]} " =~ " ${DEPLOYMENT_MODE} " ]]; then
-
         echo "❌ ERROR: Invalid deployment mode: '${DEPLOYMENT_MODE}'."
         echo "➡ Allowed values: validateOnly, validateWithTests, deploy, preview"
         exit 1
-
     fi
 
     # Check if deployment type is valid
     if [[ ! " ${ALLOWED_DEPLOYMENT_TYPES[@]} " =~ " ${DEPLOYMENT_TYPE} " ]]; then
-
         echo "❌ ERROR: Invalid deployment type: '${DEPLOYMENT_TYPE}'."
         echo "➡ Allowed values: full, delta"
         exit 1
-
     fi
 
 }
@@ -59,35 +54,15 @@ function deployAllMetadata {
 
     # Check if the command was unsuccessful
     if [ $? -ne 0 ]; then
-
         echo "❌ ERROR: 'package.xml' file generation failed."
         exit 1
-
     fi
 
     # Print artifacts content
     printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
 
-    # If provided deployment mode is 'preview', stop processing here
-    if [[ "${DEPLOYMENT_MODE}" == "preview" ]] ; then
-
-        echo "✅ Deployment preview is completed."
-        return
-
-    fi
-
-    # Othewise, proceed with metadata deployment
-    local TEST_LEVEL="RunLocalTests"
-
-    if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
-
-        TEST_LEVEL="NoTestRun"
-
-    fi
-
-    echo "⏳ Starting FULL deployment to '$TARGET_ORG'..."
-
-    deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH"
+    # Deploy FULL metadata
+    deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH"
 
 }
 
@@ -107,40 +82,21 @@ function deployDeltaMetadata {
 
     # Check if files generation failed
     if [ $? -ne 0 ]; then
-
-        echo "❌ ERROR: 'package.xml' / 'destructiveChanges.xml' files generation failed."
+        echo "❌ ERROR: 'package.xml'/'destructiveChanges.xml' files generation failed."
         exit 1
-
     fi
 
     # Print artifacts content
     printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
     printDeploymentMetadata "$DESTRUCTIVE_MANIFEST_PATH" "🗑 ❌ Metadata to be DELETED:"
 
-    # If provided deployment mode is 'preview', stop processing here
-    if [[ "${DEPLOYMENT_MODE}" == "preview" ]] ; then
-
-        echo "✅ Deployment preview is completed."
-        return
-
-    fi
-
-    # Othewise, proceed with metadata deployment
-    local TEST_LEVEL="RunLocalTests"
-
-    if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
-
-        TEST_LEVEL="NoTestRun"
-
-    fi
-
-    echo "⏳ Starting DELTA deployment to '$TARGET_ORG'..."
+    # Deploy DELTA metadata
 
     # If destructive changes SHOULD be included into deployment operation, use the line below
-    # deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
+    # deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
 
     # If destructive changes SHOULD NOT be included into deployment operation, use the line below
-    deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH"
+    deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH"
 
 }
 
@@ -149,34 +105,48 @@ function deployDeltaMetadata {
 function deployMetadata {
 
     local DEPLOY_MODE="$1"
-    local TEST_LEVEL="$2"
-    local DEPLOY_MANIFEST_PATH="$3"
-    local DESTRUCTIVE_MANIFEST_PATH="$4"
+    local DEPLOY_MANIFEST_PATH="$2"
+    local DESTRUCTIVE_MANIFEST_PATH="$3"
+    local TEST_LEVEL="$4"
     local DESTRUCTIVE_DEPLOYMENT="disabled"
     local DRY_RUN_FLAG=""
     local DESTRUCTIVE_FLAG=""
 
+    # Stop deployment processing if the deployment mode is 'preview'
+    if [[ "$DEPLOY_MODE" == "preview" ]]; then
+        echo "✅ Deployment preview is completed."
+        return
+    fi
+
+    # Check if the test level is provided, and if not - apply the corresponding value
+    if [[ -z "$TEST_LEVEL" ]]; then
+        if [[ "$DEPLOY_MODE" == "validateOnly" ]]; then
+            TEST_LEVEL="NoTestRun"
+        else
+            TEST_LEVEL="RunLocalTests"
+        fi
+    fi
+
     # Add --dry-run flag for "validateOnly" and "validateWithTests" deployment modes
     if [[ "$DEPLOY_MODE" == "validateOnly" || "$DEPLOY_MODE" == "validateWithTests" ]]; then
-
         DRY_RUN_FLAG="--dry-run"
-
     fi
 
     # Add --post-destructive-changes flag only when destructive deployment is enabled
     if [[ -n "$DESTRUCTIVE_MANIFEST_PATH" ]]; then
-
         DESTRUCTIVE_DEPLOYMENT="enabled"
         DESTRUCTIVE_FLAG="--post-destructive-changes $DESTRUCTIVE_MANIFEST_PATH"
-
     fi
 
     # Print deployment params
     echo "🚀 Deployment Params:"
     echo "--------------------------"
+    echo "✅ Deployment Type: '$DEPLOYMENT_TYPE'"
     echo "✅ Deployment Mode: '$DEPLOY_MODE'"
     echo "✅ Test Level: '$TEST_LEVEL'"
     echo "✅ Destructive Deployment: $DESTRUCTIVE_DEPLOYMENT"
+
+    echo "⏳ Starting deployment to '$TARGET_ORG'..."
 
     # Start metadata deployment
     sf project deploy start \
@@ -202,11 +172,9 @@ function printDeploymentMetadata {
     local OUTPUT=""
 
     if [ ! -f "$FILE_PATH" ]; then
-
         echo "$HEADER"
         echo "ⓘ No metadata XML file is found by provided path."
         return
-
     fi
 
     echo "$HEADER"
@@ -235,9 +203,7 @@ function printDeploymentMetadata {
 
     # Check if OUTPUT is empty
     if [ -z "$OUTPUT" ]; then
-
         OUTPUT="ⓘ No metadata entries are found in the XML file."
-
     fi
     
     echo "$OUTPUT"
@@ -271,17 +237,13 @@ validateInputs
 
 # Additional safeguard if deployment mode is "deploy" to prevent accident deployments
 if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
-
     echo "ⓘ You are about to DEPLOY. Are you sure you want to continue? (yes/no)"
     read -r confirm
     
     if [[ "$confirm" != "yes" ]]; then
-
         echo "❌ Deployment aborted."
         exit 1
-
     fi
-
 fi
 
 # Ensure the artifacts output directory exists
@@ -289,13 +251,9 @@ mkdir -p "$ARTIFACTS_OUTPUT_DIR_PATH"
 
 # Check if the metadata should be deployed fully or partially
 if [[ "$DEPLOYMENT_TYPE" == "full" ]]; then
-
     deployAllMetadata
-
 else
-
     deployDeltaMetadata
-
 fi
 
 ########################## MAIN (END)
