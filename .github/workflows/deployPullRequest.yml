@@ -31,7 +31,7 @@ jobs:
           failWhenViolations: false
 
   DeployMetadata_Staging:
-    if: ${{ github.base_ref == 'refs/heads/develop' }}
+    if: ${{ github.event.pull_request.base.ref == 'develop' }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
     name: "Deploy Metadata (Staging/QA)"
@@ -60,7 +60,7 @@ jobs:
           targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
 
   DeployMetadata_UAT:
-    if: ${{ github.base_ref == 'refs/heads/uat' }}
+    if: ${{ github.event.pull_request.base.ref == 'uat' }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
     name: "Deploy Metadata (UAT)"
