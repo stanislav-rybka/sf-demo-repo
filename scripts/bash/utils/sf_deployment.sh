@@ -7,107 +7,204 @@ ALLOWED_DEPLOYMENT_TYPES=("full" "delta")
 # Set variables with default values
 TARGET_ORG="target-org-alias"
 DEPLOYMENT_MODE="validateWithTests"
+SOURCE_DIR="force-app"
 SOURCE_BRANCH="origin/develop"
 DEST_BRANCH="HEAD"
 ARTIFACTS_OUTPUT_DIR_PATH="scripts/deployment/artifacts"
 
 ########################## FUNCTIONS (BEGIN)
 
+# Function to validate provided script inputs.
+function validateInputs {
+
+    # Check if sf CLI is installed
+    if ! command -v sf &> /dev/null; then
+
+        echo "❌ ERROR: Salesforce CLI (sf) is not installed. Please install it first."
+        exit 1
+
+    fi
+
+    # Check if deployment mode is valid
+    if [[ ! " ${ALLOWED_DEPLOYMENT_MODES[@]} " =~ " ${DEPLOYMENT_MODE} " ]]; then
+
+        echo "❌ ERROR: Invalid deployment mode: '${DEPLOYMENT_MODE}'."
+        echo "➡ Allowed values: validateOnly, validateWithTests, deploy, preview"
+        exit 1
+
+    fi
+
+    # Check if deployment type is valid
+    if [[ ! " ${ALLOWED_DEPLOYMENT_TYPES[@]} " =~ " ${DEPLOYMENT_TYPE} " ]]; then
+
+        echo "❌ ERROR: Invalid deployment type: '${DEPLOYMENT_TYPE}'."
+        echo "➡ Allowed values: full, delta"
+        exit 1
+
+    fi
+
+}
+
+
+# Function to perform 
 function deployAllMetadata {
+
     local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package.xml"
 
-    # Generate package.xml file containing all files
+    # Generate package.xml file containing all metadata entries from solution
     sf project generate manifest \
-        -p force-app \
+        -p "$SOURCE_DIR" \
         -n "package" \
         -d "$ARTIFACTS_OUTPUT_DIR_PATH"
 
     # Check if the command was unsuccessful
     if [ $? -ne 0 ]; then
-        echo "❌ Package.xml generation failed."
+
+        echo "❌ ERROR: 'package.xml' file generation failed."
         exit 1
+
     fi
 
     # Print artifacts content
     printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
 
-    echo "⏳ Starting full deployment to $TARGET_ORG..."
+    # If provided deployment mode is 'preview', stop processing here
+    if [[ "${DEPLOYMENT_MODE}" == "preview" ]] ; then
+
+        echo "✅ Deployment preview is completed."
+        return
+
+    fi
+
+    # Othewise, proceed with metadata deployment
+    local TEST_LEVEL="RunLocalTests"
 
     if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
 
-        deployMetadata "validateOnly" "NoTestRun" "$DEPLOY_MANIFEST_PATH"
-        echo "✅ Metadata deployment validation without tests is successfully completed"
-
-    elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
-
-        deployMetadata "validateWithTests" "RunLocalTests" "$DEPLOY_MANIFEST_PATH"
-        echo "✅ Metadata deployment validation with tests is successfully completed"
-
-    elif [[ "${DEPLOYMENT_MODE}" == "deploy" ]] ; then
-
-        deployMetadata "deploy" "RunLocalTests" "$DEPLOY_MANIFEST_PATH"
-        echo "✅ Metadata deployment is successfully completed"
+        TEST_LEVEL="NoTestRun"
 
     fi
+
+    echo "⏳ Starting FULL deployment to '$TARGET_ORG'..."
+
+    deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH"
+
 }
 
+
 function deployDeltaMetadata {
+
     local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
     local DESTRUCTIVE_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
 
-    # Generate package.xml and destructiveChanges.xml files containing only modified files (i.e. delta)
-    echo "👀 Comparing changes from $SOURCE_BRANCH to $DEST_BRANCH..."
+    echo "👀 Comparing changes from '$SOURCE_BRANCH' to '$DEST_BRANCH' branches..."
 
+    # Generate package.xml and destructiveChanges.xml files containing only modified files (i.e. delta)
     sf sgd source delta \
         -o "$ARTIFACTS_OUTPUT_DIR_PATH" \
         --to "$DEST_BRANCH" \
         --from "$(git merge-base HEAD $SOURCE_BRANCH)"
 
-    # Check if the command was unsuccessful
+    # Check if files generation failed
     if [ $? -ne 0 ]; then
-        echo "❌ Delta generation failed."
+
+        echo "❌ ERROR: 'package.xml' / 'destructiveChanges.xml' files generation failed."
         exit 1
+
     fi
 
     # Print artifacts content
     printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
-    printDeploymentMetadata "$DESTRUCTIVE_MANIFEST_PATH" "🗑 ❌ Metadata to be DELETED (Feature Temporarily Disabled):"
+    printDeploymentMetadata "$DESTRUCTIVE_MANIFEST_PATH" "🗑 ❌ Metadata to be DELETED:"
 
-    # Deploy changes
+    # If provided deployment mode is 'preview', stop processing here
     if [[ "${DEPLOYMENT_MODE}" == "preview" ]] ; then
-        echo "✅ Preview is completed."
-        exit 0
+
+        echo "✅ Deployment preview is completed."
+        return
+
     fi
 
-    echo "⏳ Starting delta deployment to $TARGET_ORG..."
+    # Othewise, proceed with metadata deployment
+    local TEST_LEVEL="RunLocalTests"
 
     if [[ "${DEPLOYMENT_MODE}" == "validateOnly" ]] ; then
 
-        deployMetadata "validateOnly" "NoTestRun" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
-        echo "✅ Metadata deployment validation without tests is successfully completed"
-
-    elif [[ "${DEPLOYMENT_MODE}" == "validateWithTests" ]] ; then
-
-        deployMetadata "validateWithTests" "RunLocalTests" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
-        echo "✅ Metadata deployment validation with tests is successfully completed"
-
-    elif [[ "${DEPLOYMENT_MODE}" == "deploy" ]] ; then
-
-        deployMetadata "deploy" "RunLocalTests" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
-        echo "✅ Metadata deployment is successfully completed"
+        TEST_LEVEL="NoTestRun"
 
     fi
+
+    echo "⏳ Starting DELTA deployment to '$TARGET_ORG'..."
+
+    # If destructive changes SHOULD be included into deployment operation, use the line below
+    # deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
+
+    # If destructive changes SHOULD NOT be included into deployment operation, use the line below
+    deployMetadata "$DEPLOYMENT_MODE" "$TEST_LEVEL" "$DEPLOY_MANIFEST_PATH"
+
 }
 
-# Function to extract and format metadata from XML
+
+# Function to perform metadata deployment
+function deployMetadata {
+
+    local DEPLOY_MODE="$1"
+    local TEST_LEVEL="$2"
+    local DEPLOY_MANIFEST_PATH="$3"
+    local DESTRUCTIVE_MANIFEST_PATH="$4"
+    local DESTRUCTIVE_DEPLOYMENT="disabled"
+    local DRY_RUN_FLAG=""
+    local DESTRUCTIVE_FLAG=""
+
+    # Add --dry-run flag for "validateOnly" and "validateWithTests" deployment modes
+    if [[ "$DEPLOY_MODE" == "validateOnly" || "$DEPLOY_MODE" == "validateWithTests" ]]; then
+
+        DRY_RUN_FLAG="--dry-run"
+
+    fi
+
+    # Add --post-destructive-changes flag only when destructive deployment is enabled
+    if [[ -n "$DESTRUCTIVE_MANIFEST_PATH" ]]; then
+
+        DESTRUCTIVE_DEPLOYMENT="enabled"
+        DESTRUCTIVE_FLAG="--post-destructive-changes $DESTRUCTIVE_MANIFEST_PATH"
+
+    fi
+
+    # Print deployment params
+    echo "🚀 Deployment Params:"
+    echo "--------------------------"
+    echo "✅ Deployment Mode: '$DEPLOY_MODE'"
+    echo "✅ Test Level: '$TEST_LEVEL'"
+    echo "✅ Destructive Deployment: $DESTRUCTIVE_DEPLOYMENT"
+
+    # Start metadata deployment
+    sf project deploy start \
+        -o "$TARGET_ORG" \
+        -x "$DEPLOY_MANIFEST_PATH" \
+        $DESTRUCTIVE_FLAG \
+        --ignore-conflicts \
+        --ignore-warnings \
+        --test-level="$TEST_LEVEL" \
+        -w 1000 \
+        --junit \
+        --concise \
+        $DRY_RUN_FLAG  # Include dry-run flag if applicable
+    
+}
+
+
+# Function to extract and format metadata from XML (package.xml / desctructiveChanges.xml)
 function printDeploymentMetadata {
+
     local FILE_PATH="$1"
     local HEADER="$2"
+    local OUTPUT=""
 
     if [ ! -f "$FILE_PATH" ]; then
 
         echo "$HEADER"
-        echo "No metadata detected."
+        echo "ⓘ No metadata XML file is found by provided path."
         return
 
     fi
@@ -115,7 +212,7 @@ function printDeploymentMetadata {
     echo "$HEADER"
     echo "--------------------------------------------------------"
 
-    local OUTPUT=$(awk '
+    OUTPUT=$(awk '
         BEGIN { counter = 1 }  # Initialize the global counter
         /<types>/ { inside_types = 1 } 
         /<\/types>/ { inside_types = 0 } 
@@ -138,39 +235,14 @@ function printDeploymentMetadata {
 
     # Check if OUTPUT is empty
     if [ -z "$OUTPUT" ]; then
-        echo "No metadata entries are found..."
-    else
-        echo "$OUTPUT"
-    fi
 
+        OUTPUT="ⓘ No metadata entries are found in the XML file."
+
+    fi
+    
+    echo "$OUTPUT"
     echo ""
-}
 
-# Function to deploy metadata
-function deployMetadata {
-    local DEPLOY_MODE="$1"
-    local TEST_LEVEL="$2"
-    local DEPLOY_MANIFEST_PATH="$3"
-    local DESTRUCTIVE_MANIFEST_PATH="$4"
-    local DRY_RUN_FLAG=""
-
-    # Add --dry-run flag for "validateOnly" and "validateWithTests" deployment modes
-    if [[ "$DEPLOY_MODE" == "validateOnly" || "$DEPLOY_MODE" == "validateWithTests" ]]; then
-        DRY_RUN_FLAG="--dry-run"
-    fi
-
-    # Temporarily disabled destructiveChanges.xml deployment
-    # --post-destructive-changes "$DESTRUCTIVE_MANIFEST_PATH" \
-    sf project deploy start \
-        -o "$TARGET_ORG" \
-        -x "$DEPLOY_MANIFEST_PATH" \
-        --ignore-conflicts \
-        --ignore-warnings \
-        --test-level="$TEST_LEVEL" \
-        -w 1000 \
-        --junit \
-        --concise \
-        $DRY_RUN_FLAG  # Include dry-run flag if applicable
 }
 
 ########################## FUNCTIONS (END)
@@ -178,51 +250,38 @@ function deployMetadata {
 ########################## MAIN (BEGIN)
 
 # Parse command-line arguments
-while getopts "o:s:d:m:t:h" opt; do
+while getopts "o:p:s:d:m:t:h" opt; do
     case $opt in
         o) TARGET_ORG="$OPTARG" ;;  # Salesforce org alias/username
+        p) SOURCE_DIR="$OPTARG" ;; # Source directory to take metadata files from
         s) SOURCE_BRANCH="$OPTARG" ;; # Git branch to compare from (previous state)
         d) DEST_BRANCH="$OPTARG" ;;  # Git branch to compare to (current state)
         m) DEPLOYMENT_MODE="$OPTARG" ;;  # Deployment mode
         t) DEPLOYMENT_TYPE="$OPTARG" ;; # Deployment type
         h) 
-            echo "Usage: $0 [-o target_org] [-s source_branch] [-d dest_branch] [-m deployment_mode] [-t deployment_type]"
+            echo "Usage: $0 [-o target_org] [-p source_dir] [-s source_branch] [-d dest_branch] [-m deployment_mode] [-t deployment_type]"
             exit 0
             ;;
         \?) echo "❌ Invalid option -$OPTARG" >&2; exit 1 ;;
     esac
 done
 
-
-# Check if sf CLI is installed
-if ! command -v sf &> /dev/null; then
-    echo "❌ ERROR: Salesforce CLI (sf) is not installed. Please install it first."
-    exit 1
-fi
-
-# Check if deployment mode is valid
-if [[ ! " ${ALLOWED_DEPLOYMENT_MODES[@]} " =~ " ${DEPLOYMENT_MODE} " ]]; then
-    echo "❌ ERROR: Invalid deployment mode: '${DEPLOYMENT_MODE}'."
-    echo "➡ Allowed values: validateOnly, validateWithTests, deploy, preview"
-    exit 1
-fi
-
-# Check if deployment type is valid
-if [[ ! " ${ALLOWED_DEPLOYMENT_TYPES[@]} " =~ " ${DEPLOYMENT_TYPE} " ]]; then
-    echo "❌ ERROR: Invalid deployment type: '${DEPLOYMENT_TYPE}'."
-    echo "➡ Allowed values: full, delta"
-    exit 1
-fi
+# Validate parsed arguments
+validateInputs
 
 # Additional safeguard if deployment mode is "deploy" to prevent accident deployments
 if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
-    echo "⚠️  You are about to DEPLOY. Are you sure you want to continue? (yes/no)"
+
+    echo "ⓘ You are about to DEPLOY. Are you sure you want to continue? (yes/no)"
     read -r confirm
     
     if [[ "$confirm" != "yes" ]]; then
+
         echo "❌ Deployment aborted."
         exit 1
+
     fi
+
 fi
 
 # Ensure the artifacts output directory exists
@@ -230,9 +289,13 @@ mkdir -p "$ARTIFACTS_OUTPUT_DIR_PATH"
 
 # Check if the metadata should be deployed fully or partially
 if [[ "$DEPLOYMENT_TYPE" == "full" ]]; then
+
     deployAllMetadata
+
 else
+
     deployDeltaMetadata
+
 fi
 
 ########################## MAIN (END)
