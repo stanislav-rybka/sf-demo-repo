@@ -74,9 +74,15 @@ runs:
           deployment_type="full"
         fi
         
-        # Executing deployment script
-        $DEPLOYMENT_UTILS_SCRIPT_PATH \
-            -o "$TARGET_ORG_ALIAS" \
-            -s "$TARGET_DELTA_COMPARE_BRANCH" \
-            -m "$DEPLOYMENT_MODE" \
-            -t "$deployment_type"
+        cmd="$DEPLOYMENT_UTILS_SCRIPT_PATH \
+            -o \"$TARGET_ORG_ALIAS\" \
+            -s \"$TARGET_DELTA_COMPARE_BRANCH\" \
+            -m \"$DEPLOYMENT_MODE\" \
+            -t \"$deployment_type\""
+        
+        # Check if auto-confirmation is needed
+        if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
+          echo "y" | eval $cmd
+        else
+          eval $cmd
+        fi
