@@ -6,6 +6,7 @@ on:
     types: [opened, edited, reopened, synchronize]
     branches:
       - develop
+      - uat
 
 jobs:
   PerformMetadataAnalysis:
@@ -29,15 +30,45 @@ jobs:
         with:
           failWhenViolations: false
 
-  ValidateMetadataDeployment:
+  ValidateMetadataDeployment_Staging:
+    if: ${{ github.ref == 'refs/heads/develop' }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
-    name: "Validate Metadata Deployment"
+    name: "Validate Metadata Deployment (Staging/QA)"
     environment: "Staging"
 
     env:
       DEPLOYMENT_MODE: "validateWithTests"
       TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Validate Deployment"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
+
+  ValidateMetadataDeployment_UAT:
+    if: ${{ github.ref == 'refs/heads/uat' }}
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Validate Metadata Deployment (UAT)"
+    environment: "UAT"
+
+    env:
+      DEPLOYMENT_MODE: "validateWithTests"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/uat"
       DELTA_DEPLOYMENT: true
 
     steps:
