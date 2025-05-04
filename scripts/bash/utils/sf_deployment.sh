@@ -15,8 +15,10 @@ ARTIFACTS_OUTPUT_DIR_PATH="scripts/deployment/artifacts"
 
 ########################## FUNCTIONS (BEGIN)
 
+# --------------------
 # Function to validate provided script inputs.
-function validateInputs {
+# --------------------
+function validate_inputs {
 
     # Check if sf CLI is installed
     if ! command -v sf &> /dev/null; then
@@ -27,24 +29,25 @@ function validateInputs {
     # Check if deployment mode is valid
     if [[ ! " ${ALLOWED_DEPLOYMENT_MODES[@]} " =~ " ${DEPLOYMENT_MODE} " ]]; then
         echo "❌ ERROR: Invalid deployment mode: '${DEPLOYMENT_MODE}'."
-        echo "➡ Allowed values: validateOnly, validateWithTests, deploy, preview"
+        echo "ⓘ Allowed values: 'validateOnly', 'validateWithTests', 'deploy', 'preview'."
         exit 1
     fi
 
     # Check if deployment type is valid
     if [[ ! " ${ALLOWED_DEPLOYMENT_TYPES[@]} " =~ " ${DEPLOYMENT_TYPE} " ]]; then
         echo "❌ ERROR: Invalid deployment type: '${DEPLOYMENT_TYPE}'."
-        echo "➡ Allowed values: full, delta"
+        echo "ⓘ Allowed values: 'full', 'delta'."
         exit 1
     fi
 
 }
 
+# --------------------
+# Function to perform deployment of all metadata files located in provided source directory
+# --------------------
+function deploy_all_metadata {
 
-# Function to perform 
-function deployAllMetadata {
-
-    local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package.xml"
+    local deploy_manifest_path="${ARTIFACTS_OUTPUT_DIR_PATH}/package.xml"
 
     # Generate package.xml file containing all metadata entries from solution
     sf project generate manifest \
@@ -58,19 +61,18 @@ function deployAllMetadata {
         exit 1
     fi
 
-    # Print artifacts content
-    printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
-
     # Deploy FULL metadata
-    deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH"
+    deploy_metadata "$DEPLOYMENT_MODE" "$deploy_manifest_path"
 
 }
 
+# --------------------
+# Function to perform deployment of only changed metadata files
+# --------------------
+function deploy_delta_metadata {
 
-function deployDeltaMetadata {
-
-    local DEPLOY_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
-    local DESTRUCTIVE_MANIFEST_PATH="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
+    local deploy_manifest_path="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
+    local destructive_manifest_path="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
 
     echo "👀 Comparing changes from '$SOURCE_BRANCH' to '$DEST_BRANCH' branches..."
 
@@ -86,101 +88,102 @@ function deployDeltaMetadata {
         exit 1
     fi
 
-    # Print artifacts content
-    printDeploymentMetadata "$DEPLOY_MANIFEST_PATH" "🔹 📦 Metadata to be DEPLOYED:"
-    printDeploymentMetadata "$DESTRUCTIVE_MANIFEST_PATH" "🗑 ❌ Metadata to be DELETED:"
-
-    # Deploy DELTA metadata
-
     # If destructive changes SHOULD be included into deployment operation, use the line below
-    # deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH" "$DESTRUCTIVE_MANIFEST_PATH"
+    # deploy_metadata "$deploy_manifest_path" "$destructive_manifest_path"
 
     # If destructive changes SHOULD NOT be included into deployment operation, use the line below
-    deployMetadata "$DEPLOYMENT_MODE" "$DEPLOY_MANIFEST_PATH"
+    deploy_metadata "$deploy_manifest_path"
 
 }
 
+# --------------------
+# Function to perform actual metadata deployment
+# --------------------
+function deploy_metadata {
 
-# Function to perform metadata deployment
-function deployMetadata {
+    local deploy_manifest_path="$1"
+    local destructive_manifest_path="$2"
+    local test_level="$3"
+    local destructive_deployment="disabled"
+    local dry_run_flag=""
+    local destructive_flag=""
 
-    local DEPLOY_MODE="$1"
-    local DEPLOY_MANIFEST_PATH="$2"
-    local DESTRUCTIVE_MANIFEST_PATH="$3"
-    local TEST_LEVEL="$4"
-    local DESTRUCTIVE_DEPLOYMENT="disabled"
-    local DRY_RUN_FLAG=""
-    local DESTRUCTIVE_FLAG=""
+    # Print deployment artifacts content
+    print_deployment_metadata "$deploy_manifest_path" "🔹 📦 Metadata to be DEPLOYED:"
 
     # Stop deployment processing if the deployment mode is 'preview'
-    if [[ "$DEPLOY_MODE" == "preview" ]]; then
+    if [[ "$DEPLOYMENT_MODE" == "preview" ]]; then
         echo "✅ Deployment preview is completed."
         return
     fi
 
     # Check if the test level is provided, and if not - apply the corresponding value
-    if [[ -z "$TEST_LEVEL" ]]; then
-        if [[ "$DEPLOY_MODE" == "validateOnly" ]]; then
-            TEST_LEVEL="NoTestRun"
+    if [[ -z "$test_level" ]]; then
+        if [[ "$DEPLOYMENT_MODE" == "validateOnly" ]]; then
+            test_level="NoTestRun"
         else
-            TEST_LEVEL="RunLocalTests"
+            test_level="RunLocalTests"
         fi
     fi
 
     # Add --dry-run flag for "validateOnly" and "validateWithTests" deployment modes
-    if [[ "$DEPLOY_MODE" == "validateOnly" || "$DEPLOY_MODE" == "validateWithTests" ]]; then
-        DRY_RUN_FLAG="--dry-run"
+    if [[ "$DEPLOYMENT_MODE" == "validateOnly" || "$DEPLOYMENT_MODE" == "validateWithTests" ]]; then
+        dry_run_flag="--dry-run"
     fi
 
     # Add --post-destructive-changes flag only when destructive deployment is enabled
-    if [[ -n "$DESTRUCTIVE_MANIFEST_PATH" ]]; then
-        DESTRUCTIVE_DEPLOYMENT="enabled"
-        DESTRUCTIVE_FLAG="--post-destructive-changes $DESTRUCTIVE_MANIFEST_PATH"
+    if [[ -n "$destructive_manifest_path" ]]; then
+        destructive_deployment="enabled"
+        destructive_flag="--post-destructive-changes $destructive_manifest_path"
+
+        # Print destructive artifacts content
+        print_deployment_metadata "$destructive_manifest_path" "🗑 ❌ Metadata to be DELETED:"
     fi
 
     # Print deployment params
     echo "🚀 Deployment Params:"
     echo "--------------------------"
     echo "✅ Deployment Type: '$DEPLOYMENT_TYPE'"
-    echo "✅ Deployment Mode: '$DEPLOY_MODE'"
-    echo "✅ Test Level: '$TEST_LEVEL'"
-    echo "✅ Destructive Deployment: $DESTRUCTIVE_DEPLOYMENT"
-
+    echo "✅ Deployment Mode: '$DEPLOYMENT_MODE'"
+    echo "✅ Test Level: '$test_level'"
+    echo "✅ Destructive Deployment: $destructive_deployment"
+    echo "--------------------------"
     echo "⏳ Starting deployment to '$TARGET_ORG'..."
 
     # Start metadata deployment
     sf project deploy start \
         -o "$TARGET_ORG" \
-        -x "$DEPLOY_MANIFEST_PATH" \
-        $DESTRUCTIVE_FLAG \
+        -x "$deploy_manifest_path" \
+        $destructive_flag \
         --ignore-conflicts \
         --ignore-warnings \
-        --test-level="$TEST_LEVEL" \
+        --test-level="$test_level" \
         -w 1000 \
         --junit \
         --concise \
-        $DRY_RUN_FLAG  # Include dry-run flag if applicable
+        $dry_run_flag
     
 }
 
-
+# --------------------
 # Function to extract and format metadata from XML (package.xml / desctructiveChanges.xml)
-function printDeploymentMetadata {
+# --------------------
+function print_deployment_metadata {
 
-    local FILE_PATH="$1"
-    local HEADER="$2"
-    local OUTPUT=""
+    local file_path="$1"
+    local header="$2"
+    local output=""
 
-    if [ ! -f "$FILE_PATH" ]; then
-        echo "$HEADER"
+    if [ ! -f "$file_path" ]; then
+        echo "$header"
         echo "ⓘ No metadata XML file is found by provided path."
         return
     fi
 
-    echo "$HEADER"
+    echo "$header"
     echo "--------------------------------------------------------"
 
-    OUTPUT=$(awk '
+    output=$(awk '
         BEGIN { counter = 1 }  # Initialize the global counter
         /<types>/ { inside_types = 1 } 
         /<\/types>/ { inside_types = 0 } 
@@ -199,14 +202,14 @@ function printDeploymentMetadata {
                 m_count = 0; # Reset members count
             }
         }
-    ' "$FILE_PATH")
+    ' "$file_path")
 
-    # Check if OUTPUT is empty
-    if [ -z "$OUTPUT" ]; then
-        OUTPUT="ⓘ No metadata entries are found in the XML file."
+    # Check if output is empty
+    if [ -z "$output" ]; then
+        output="ⓘ No metadata entries are found in the XML file."
     fi
     
-    echo "$OUTPUT"
+    echo "$output"
     echo ""
 
 }
@@ -233,15 +236,15 @@ while getopts "o:p:s:d:m:t:h" opt; do
 done
 
 # Validate parsed arguments
-validateInputs
+validate_inputs
 
 # Additional safeguard if deployment mode is "deploy" to prevent accident deployments
 if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
-    echo "ⓘ You are about to DEPLOY. Are you sure you want to continue? (yes/no)"
+    echo "ⓘ You are about to DEPLOY. Are you sure you want to continue? (y/n)?"
     read -r confirm
     
-    if [[ "$confirm" != "yes" ]]; then
-        echo "❌ Deployment aborted."
+    if [[ "$confirm" != "y" ]]; then
+        echo "❌ ERROR: Deployment aborted."
         exit 1
     fi
 fi
@@ -251,9 +254,9 @@ mkdir -p "$ARTIFACTS_OUTPUT_DIR_PATH"
 
 # Check if the metadata should be deployed fully or partially
 if [[ "$DEPLOYMENT_TYPE" == "full" ]]; then
-    deployAllMetadata
+    deploy_all_metadata
 else
-    deployDeltaMetadata
+    deploy_delta_metadata
 fi
 
 ########################## MAIN (END)
