@@ -6,7 +6,7 @@
         <language>en_US</language>
         <protected>true</protected>
         <shortDescription>Test Custom Label 1</shortDescription>
-        <value>Test Description</value>
+        <value>Test Description (Changed)</value>
     </labels>
     <labels>
         <fullName>TestCustomLabel_2</fullName>
