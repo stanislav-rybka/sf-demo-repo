@@ -16,7 +16,7 @@ ARTIFACTS_OUTPUT_DIR_PATH="scripts/deployment/artifacts"
 ########################## FUNCTIONS (BEGIN)
 
 # --------------------
-# Function to validate provided script inputs.
+# Function to validate provided script inputs
 # --------------------
 function validate_inputs {
 

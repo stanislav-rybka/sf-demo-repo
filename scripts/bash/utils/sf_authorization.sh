@@ -1,89 +1,88 @@
-# Authorization into SF environment by provided org credentials
-# $1 param - target org username
-# $2 param - target org password
-# $3 param - target org login URL
-# $4 param - target org alias
+#!/bin/bash
+
+# --------------------
+# Function to authorize into SF environment by provided org credentials
+# --------------------
 function authorizeWithCredentials {
 
-    local TARGET_ORG_USERNAME=$1
-    local TARGET_ORG_PASSWORD=$2
-    local TARGET_ORG_URL=$3
-    local TARGET_ORG_ALIAS=$4
+    local target_org_username=$1
+    local target_org_password=$2
+    local target_org_url=$3
+    local target_org_alias=$4
 
-    if [[ -z "$TARGET_ORG_USERNAME" || "$TARGET_ORG_USERNAME" == "none" || \
-          -z "$TARGET_ORG_PASSWORD" || "$TARGET_ORG_PASSWORD" == "none" || \
-          -z "$TARGET_ORG_URL" || "$TARGET_ORG_URL" == "none" ]]; then
+    if [[ -z "$target_org_username" || "$target_org_username" == "none" || \
+          -z "$target_org_password" || "$target_org_password" == "none" || \
+          -z "$target_org_url" || "$target_org_url" == "none" ]]; then
 
-      echo "❌ Target environment credentials are not completely provided. Cannot continue the authorization process."
+      echo "❌ ERROR: Target environment credentials are not provided, cannot continue the authorization process."
       exit 1;
 
     fi
 
     echo "⏳ Authorizing to the target environment..."
 
-    # temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
+    # Temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
     set +e
 
-    local DX_AUTH_RESPONSE=$(sf sfpowerkit:auth:login \
-        -u "$TARGET_ORG_USERNAME" \
-        -p "$TARGET_ORG_PASSWORD" \
-        -a "$TARGET_ORG_ALIAS" \
-        -r "$TARGET_ORG_URL" \
+    local dx_auth_response=$(sf sfpowerkit:auth:login \
+        -u "$target_org_username" \
+        -p "$target_org_password" \
+        -a "$target_org_alias" \
+        -r "$target_org_url" \
         --json)
 
-    local DX_STATUS_CODE=$(echo "$DX_AUTH_RESPONSE" | jq .status)
+    local dx_status_code=$(echo "$dx_auth_response" | jq .status)
     
     set -e
 
-    # early exit - error when authorizing to target org by creds
-    if [[ "$DX_STATUS_CODE" != "0" ]]; then
+    # Early exit - error when authorizing to target org by creds
+    if [[ "$dx_status_code" != "0" ]]; then
 
-      echo "❌ Error when logging into the target environment by provided credentials as '$TARGET_ORG_USERNAME' user."
-      echo "$DX_AUTH_RESPONSE" | jq .message
+      echo "❌ ERROR: failure when logging into the target environment by provided credentials as '$target_org_username' user."
+      echo "$dx_auth_response" | jq .message
       exit 1;
 
     fi
 
     echo ""
-    echo "✅ Successfully authorized as '$TARGET_ORG_USERNAME' user"
+    echo "✅ Successfully authorized as '$target_org_username' user."
 
-    # setting target org alias at runner's level for other steps.
-    echo "TARGET_ORG_USERNAME=$TARGET_ORG_USERNAME" >> $GITHUB_ENV
+    # Setting target org alias at runner's level for other steps.
+    echo "TARGET_ORG_USERNAME=$target_org_username" >> $GITHUB_ENV
 
 }
 
-
+# --------------------
 # Authorization into SF environment by provided org authorization URL
-# $1 param - target org authorization URL
-# $2 param - target org alias
+# --------------------
 function authorizeWithAuthUrl {
 
-    local TARGET_ORG_AUTH_URL=$1
-    local TARGET_ORG_ALIAS=$2
+    local target_org_auth_url=$1
+    local target_org_alias=$2
 
-    # temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
+    # Temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
     set +e
 
-    local DX_AUTH_RESPONSE=$(echo $TARGET_ORG_AUTH_URL | sf org login sfdx-url --sfdx-url-stdin --json -a "$TARGET_ORG_ALIAS");
-    local DX_STATUS_CODE=$(echo $DX_AUTH_RESPONSE | jq .status);
+    local dx_auth_response=$(echo $target_org_auth_url | sf org login sfdx-url --sfdx-url-stdin --json -a "$target_org_alias");
+    local dx_status_code=$(echo $dx_auth_response | jq .status);
 
     set -e
 
-    # early exit - error when authorizing to target environment
-    if [[ "$DX_STATUS_CODE" != "0" ]]; then
+    # Early exit - error when authorizing to target environment
+    if [[ "$dx_status_code" != "0" ]]; then
 
-      echo "❌ Error when logging into the target environment ('$TARGET_ORG_ALIAS') by SFDX URL."
-      echo "$DX_AUTH_RESPONSE" | jq .
+      echo "❌ ERROR: failure when logging into the target environment ('$target_org_alias') by SFDX URL."
+      echo "$dx_auth_response" | jq .
       exit 1
 
     fi
 
-    local TARGET_ORG_USERNAME=$(echo "$DX_AUTH_RESPONSE" | jq -r '.result.username // empty');
+    local target_org_username=$(echo "$dx_auth_response" | jq -r '.result.username // empty');
 
     echo ""
-    echo "✅ Successfully authorized as '$TARGET_ORG_USERNAME' user"
+    echo "✅ Successfully authorized as '$target_org_username' user."
     
-    # setting target org alias at runner's level for other steps.
-    echo "TARGET_ORG_USERNAME=$TARGET_ORG_USERNAME" >> $GITHUB_ENV
+    # Setting target org alias at runner's level for other steps.
+    echo "TARGET_ORG_USERNAME=$target_org_username" >> $GITHUB_ENV
 
 }
