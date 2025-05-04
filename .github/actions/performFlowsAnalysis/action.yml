@@ -1,0 +1,96 @@
+name: "Perform Flows Analysis"
+
+inputs:
+  pathToScan:
+    description: "Path to a directory to scan"
+    type: string
+    default: "force-app"
+
+  failureThresholdLevel:
+    description: "Failure threshold level"
+    type: choice
+    default: "error"
+    options:
+      - "error"
+      - "warning"
+      - "note"
+      - "never"
+
+  failWhenViolations:
+    description: "Fail if violations threshold is exceeded"
+    type: boolean
+    default: true
+
+  reportFileName:
+    description: "Name of a report file containing flows scan results"
+    type: string
+    default: "salesforce-flows-analyzer-results"
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: "Install Plugin - Lightning Flow Scanner"
+      continue-on-error: false
+      shell: bash
+      env:
+        PLUGIN_VERSION: "latest"
+      run: |
+        echo "⏳ Installing 'lightning-flow-scanner' plugin if no originally installed version is available..."
+        (sf plugins | grep -i "lightning-flow-scanner") || (echo "y" | sf plugins install lightning-flow-scanner@$PLUGIN_VERSION)
+        echo "✅ 'lightning-flow-scanner' plugin is installed successfully"
+
+    - name: "Run Lightning Flow Scanner"
+      id: runFlowsAnalyzer
+      shell: bash
+      continue-on-error: true
+      env:
+        PATH_TO_SCAN: ${{ inputs.pathToScan }}
+        FAILURE_THRESHOLD_LEVEL: ${{ inputs.failureThresholdLevel }}
+        REPORT_FILE_NAME: ${{ inputs.reportFileName }}
+      run: |
+        echo "⏳ Running 'lightning-flow-scanner' against '$PATH_TO_SCAN' path"
+
+        # Temporary disabling immediate exit by using "set +e/-e" commands (i.e. some kind of try/catch)
+        set +e
+
+        sf flow scan \
+            --directory="$PATH_TO_SCAN" \
+            --failon="$FAILURE_THRESHOLD_LEVEL" \
+            > "${REPORT_FILE_NAME}.txt"
+
+        # Capturing the exit status of the 'sf flow scan' command
+        scan_result_status_code=$?
+
+        set -e
+
+        echo "✅ Execution of 'lightning-flow-scanner' is successfully completed"
+
+        # Setting scan results into variables
+        echo "SCAN_RESULT_STATUS_CODE=$scan_result_status_code" >> $GITHUB_ENV
+
+        # Printing scanner results into output
+        cat "${GITHUB_WORKSPACE}/${REPORT_FILE_NAME}.txt"
+
+    - name: "Publish Scanner Results Artifact"
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.reportFileName }}
+        path: "${{ github.workspace }}/${{ inputs.reportFileName }}.txt"
+
+    - name: "Check Analysis Results"
+      shell: bash
+      env:
+        FAILURE_MODE_ENABLED: ${{ inputs.failWhenViolations }}
+        PATH_TO_SCAN: ${{ inputs.pathToScan }}
+        FAILURE_THRESHOLD_LEVEL: ${{ inputs.failureThresholdLevel }}
+      run: |
+        echo "🟣 Failure mode enabled: $FAILURE_MODE_ENABLED"
+        echo "🟣 Defined path to scan: $PATH_TO_SCAN"
+        echo "🟣 Defined failure threshold level: $FAILURE_THRESHOLD_LEVEL"
+        echo "🟣 Analyzer exit code: $SCAN_RESULT_STATUS_CODE"
+
+        if [[ "$FAILURE_MODE_ENABLED" == "true" && SCAN_RESULT_STATUS_CODE -gt 0 ]] ; then
+          echo "❌ ERROR: Failing the step execution due to reported code analysis violations. Please check more details in the summary."
+          exit 1
+        fi
