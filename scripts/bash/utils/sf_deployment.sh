@@ -74,13 +74,15 @@ function deploy_delta_metadata {
     local deploy_manifest_path="${ARTIFACTS_OUTPUT_DIR_PATH}/package/package.xml"
     local destructive_manifest_path="${ARTIFACTS_OUTPUT_DIR_PATH}/destructiveChanges/destructiveChanges.xml"
 
-    echo "👀 Comparing changes from '$SOURCE_BRANCH' to '$DEST_BRANCH' branches..."
+    echo "👀 Comparing changes between '$SOURCE_BRANCH' and '$DEST_BRANCH' branches/SHA..."
 
     # Generate package.xml and destructiveChanges.xml files containing only modified files (i.e. delta)
     sf sgd source delta \
         -o "$ARTIFACTS_OUTPUT_DIR_PATH" \
         --to "$DEST_BRANCH" \
-        --from "$(git merge-base HEAD $SOURCE_BRANCH)"
+        --from "$SOURCE_BRANCH"
+        # Uncomment this line if diff between branches should be searched starting the common ancestor commit
+        # --from "$(git merge-base $DEST_BRANCH $SOURCE_BRANCH)"
 
     # Check if files generation failed
     if [ $? -ne 0 ]; then
