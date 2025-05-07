@@ -28,12 +28,12 @@ inputs:
     description: "Deployment mode"
     required: true
     type: choice
-    default: "install"
+    default: "validateWithTests"
     options:
-      - install
-      - upgrade
+      - preview
       - validateOnly
       - validateWithTests
+      - deploy
 
 runs:
   using: "composite"
