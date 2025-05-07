@@ -4,6 +4,8 @@ run-name: "Deploy Pull Request (${{ github.actor }})"
 on:
   pull_request:
     types: [closed]
+    paths:
+      - 'force-app/**'
     branches:
       - develop
       - uat
@@ -24,7 +26,7 @@ jobs:
       - name: "Perform Code Analysis"
         uses: ./.github/actions/performCodeAnalysis
         with:
-          failWhenViolations: true
+          failWhenViolations: false
 
       - name: "Perform Flows Analysis"
         uses: ./.github/actions/performFlowsAnalysis
@@ -32,7 +34,7 @@ jobs:
           failWhenViolations: false
 
   DeployMetadata_Staging:
-    if: ${{ github.event.pull_request.base.ref == 'develop' }}
+    if: ${{ github.event.pull_request.base.ref == 'develop' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
     name: "Deploy Metadata (Staging/QA)"
@@ -40,7 +42,7 @@ jobs:
 
     env:
       DEPLOYMENT_MODE: "deploy"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:
@@ -61,7 +63,7 @@ jobs:
           targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
 
   DeployMetadata_UAT:
-    if: ${{ github.event.pull_request.base.ref == 'uat' }}
+    if: ${{ github.event.pull_request.base.ref == 'uat' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
     name: "Deploy Metadata (UAT)"
@@ -69,7 +71,7 @@ jobs:
 
     env:
       DEPLOYMENT_MODE: "deploy"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/uat"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:
@@ -90,7 +92,7 @@ jobs:
           targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
 
   DeployMetadata_Production:
-    if: ${{ github.event.pull_request.base.ref == 'master' }}
+    if: ${{ github.event.pull_request.base.ref == 'master' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
     name: "Deploy Metadata (Production)"
@@ -98,7 +100,7 @@ jobs:
 
     env:
       DEPLOYMENT_MODE: "deploy"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/master"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:

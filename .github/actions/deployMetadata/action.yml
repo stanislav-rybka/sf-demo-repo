@@ -1,6 +1,11 @@
 name: "Deploy Metadata"
 
 inputs:
+  targetOrgAlias:
+    description: "Target environment alias"
+    type: string
+    default: "targetOrg"
+
   targetOrgUrl:
     description: "Target environment login URL"
     type: string
@@ -23,12 +28,12 @@ inputs:
     description: "Deployment mode"
     required: true
     type: choice
-    default: "install"
+    default: "validateWithTests"
     options:
-      - install
-      - upgrade
+      - preview
       - validateOnly
       - validateWithTests
+      - deploy
 
 runs:
   using: "composite"
@@ -50,7 +55,7 @@ runs:
       continue-on-error: false
       uses: ./.github/actions/authorizeOrg
       with:
-        targetOrgAlias: "targetOrg"
+        targetOrgAlias: ${{ inputs.targetOrgAlias }}
         targetOrgUrl: ${{ inputs.targetOrgUrl }}
         targetOrgAuthUrl: ${{ inputs.targetOrgAuthUrl }}
 
