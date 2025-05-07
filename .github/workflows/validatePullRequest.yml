@@ -1,0 +1,121 @@
+name: "Validate Pull Request"
+run-name: "Validate Pull Request (${{ github.actor }})"
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    paths:
+      - 'force-app/**'
+    branches:
+      - develop
+      - uat
+      - master
+
+jobs:
+  PerformMetadataAnalysis:
+    runs-on: ubuntu-latest
+    name: "Perform Metadata Analysis"
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Perform Code Analysis"
+        uses: ./.github/actions/performCodeAnalysis
+        with:
+          failWhenViolations: false
+
+      - name: "Perform Flows Analysis"
+        uses: ./.github/actions/performFlowsAnalysis
+        with:
+          failWhenViolations: false
+
+  ValidateMetadataDeployment_Staging:
+    if: ${{ github.event.pull_request.base.ref == 'develop' }}
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Validate Metadata Deployment (Staging/QA)"
+    environment: "Staging"
+
+    env:
+      DEPLOYMENT_MODE: "validateWithTests"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Validate Deployment"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
+
+  ValidateMetadataDeployment_UAT:
+    if: ${{ github.event.pull_request.base.ref == 'uat' }}
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Validate Metadata Deployment (UAT)"
+    environment: "UAT"
+
+    env:
+      DEPLOYMENT_MODE: "validateWithTests"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/uat"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Validate Deployment"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
+
+  ValidateMetadataDeployment_Production:
+    if: ${{ github.event.pull_request.base.ref == 'master' }}
+    needs: PerformMetadataAnalysis
+    runs-on: ubuntu-latest
+    name: "Validate Metadata Deployment (Production)"
+    environment: "Production"
+
+    env:
+      DEPLOYMENT_MODE: "validateWithTests"
+      TARGET_DELTA_COMPARE_BRANCH: "origin/master"
+      DELTA_DEPLOYMENT: true
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Initialize"
+        uses: ./.github/actions/init
+
+      - name: "Validate Deployment"
+        uses: ./.github/actions/deployMetadata
+        with:
+          targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
+          deploymentMode: ${{ env.DEPLOYMENT_MODE }}
+          deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
+          targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}

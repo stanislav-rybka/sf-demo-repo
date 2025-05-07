@@ -1,0 +1,93 @@
+name: "Deploy Metadata"
+
+inputs:
+  targetOrgAlias:
+    description: "Target environment alias"
+    type: string
+    default: "targetOrg"
+
+  targetOrgUrl:
+    description: "Target environment login URL"
+    type: string
+
+  targetOrgAuthUrl: 
+    description: "Target environment authorization URL"
+    type: string
+    required: true
+
+  deltaDeployment:
+    description: "Indicates if all/only changed files are deployed"
+    type: boolean
+    default: false
+
+  targetDeltaCompareBranch:
+    description: "Name/SHA of the branch from which delta comparison is being generated"
+    type: string
+
+  deploymentMode:
+    description: "Deployment mode"
+    required: true
+    type: choice
+    default: "validateWithTests"
+    options:
+      - preview
+      - validateOnly
+      - validateWithTests
+      - deploy
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: "Install Plugin - 'sfdx-git-delta'"
+      continue-on-error: false
+      shell: bash
+      env:
+        PLUGIN_VERSION: "stable"
+      run: |
+        # TODO: make a re-usable composite action to install sf plugins by provided name
+        echo "⏳ Installing 'sfdx-git-delta' plugin if no originally installed version is available..."
+        (sf plugins | grep -i "sfdx-git-delta") || (echo "y" | sf plugins install sfdx-git-delta@$PLUGIN_VERSION)
+        echo "✅ 'sfdx-git-delta' plugin is installed successfully"
+
+    - name: "Authorize Target Org"
+      id: authorizeTargetOrg
+      continue-on-error: false
+      uses: ./.github/actions/authorizeOrg
+      with:
+        targetOrgAlias: ${{ inputs.targetOrgAlias }}
+        targetOrgUrl: ${{ inputs.targetOrgUrl }}
+        targetOrgAuthUrl: ${{ inputs.targetOrgAuthUrl }}
+
+    - name: "Deploy Metadata"
+      shell: bash
+      continue-on-error: false
+      env:
+          DEPLOYMENT_UTILS_SCRIPT_PATH: "scripts/bash/utils/sf_deployment.sh"
+          SOURCE_DIRECTORY: "force-app"
+          DEPLOYMENT_MODE: ${{ inputs.deploymentMode }}
+          DELTA_DEPLOYMENT: ${{ inputs.deltaDeployment }}
+          TARGET_DELTA_COMPARE_BRANCH: ${{ inputs.targetDeltaCompareBranch }}
+          TARGET_ORG_ALIAS: ${{ steps.authorizeTargetOrg.outputs.targetOrgAlias }}
+      run: |
+        # Making deployment script file executable
+        chmod +x $DEPLOYMENT_UTILS_SCRIPT_PATH
+
+        deployment_type="delta"
+
+        if [[ "${DELTA_DEPLOYMENT}" == "false" ]] ; then
+          deployment_type="full"
+        fi
+        
+        cmd="$DEPLOYMENT_UTILS_SCRIPT_PATH \
+            -o \"$TARGET_ORG_ALIAS\" \
+            -s \"$TARGET_DELTA_COMPARE_BRANCH\" \
+            -m \"$DEPLOYMENT_MODE\" \
+            -t \"$deployment_type\""
+        
+        # Check if auto-confirmation is needed
+        if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
+          echo "y" | eval $cmd
+        else
+          eval $cmd
+        fi
