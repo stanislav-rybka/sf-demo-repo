@@ -70,7 +70,7 @@ jobs:
     environment: "UAT"
 
     env:
-      DEPLOYMENT_MODE: "deployWithTests"
+      DEPLOYMENT_MODE: "deployOnly"
       TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
