@@ -33,7 +33,8 @@ inputs:
       - preview
       - validateOnly
       - validateWithTests
-      - deploy
+      - deployOnly
+      - deployWithTests
 
 runs:
   using: "composite"
@@ -86,7 +87,7 @@ runs:
             -t \"$deployment_type\""
         
         # Check if auto-confirmation is needed
-        if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
+        if [[ "$DEPLOYMENT_MODE" == "deployOnly" || "$DEPLOYMENT_MODE" == "deployWithTests" ]]; then
           echo "y" | eval $cmd
         else
           eval $cmd

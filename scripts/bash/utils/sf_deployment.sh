@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Allowed values
-ALLOWED_DEPLOYMENT_MODES=("validateOnly" "validateWithTests" "deploy" "preview")
+ALLOWED_DEPLOYMENT_MODES=("preview" "validateOnly" "validateWithTests" "deployOnly" "deployWithTests")
 ALLOWED_DEPLOYMENT_TYPES=("full" "delta")
 
 # Set variables with default values
@@ -29,7 +29,7 @@ function validate_inputs {
     # Check if deployment mode is valid
     if [[ ! " ${ALLOWED_DEPLOYMENT_MODES[@]} " =~ " ${DEPLOYMENT_MODE} " ]]; then
         echo "❌ ERROR: Invalid deployment mode: '${DEPLOYMENT_MODE}'."
-        echo "ⓘ Allowed values: 'validateOnly', 'validateWithTests', 'deploy', 'preview'."
+        echo "ⓘ Allowed values: 'validateOnly', 'validateWithTests', 'deployOnly', 'deployWithTests', 'preview'."
         exit 1
     fi
 
@@ -121,7 +121,7 @@ function deploy_metadata {
 
     # Check if the test level is provided, and if not - apply the corresponding value
     if [[ -z "$test_level" ]]; then
-        if [[ "$DEPLOYMENT_MODE" == "validateOnly" ]]; then
+        if [[ "$DEPLOYMENT_MODE" == "validateOnly" || "$DEPLOYMENT_MODE" == "deployOnly" ]]; then
             test_level="NoTestRun"
         else
             test_level="RunLocalTests"
@@ -240,8 +240,8 @@ done
 # Validate parsed arguments
 validate_inputs
 
-# Additional safeguard if deployment mode is "deploy" to prevent accident deployments
-if [[ "$DEPLOYMENT_MODE" == "deploy" ]]; then
+# Additional safeguard if deployment mode is "deployOnly" / "deployWithTests" to prevent accident deployments
+if [[ "$DEPLOYMENT_MODE" == "deployOnly" || "$DEPLOYMENT_MODE" == "deployWithTests" ]]; then
     echo "ⓘ You are about to DEPLOY. Are you sure you want to continue? (y/n)?"
     read -r confirm
     
