@@ -1,9 +1,9 @@
-name: "Validate Pull Request"
-run-name: "Validate Pull Request (${{ github.actor }})"
+name: "Deploy Pull Request"
+run-name: "Deploy Pull Request (${{ github.actor }})"
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [closed]
     paths:
       - 'force-app/**'
     branches:
@@ -33,16 +33,16 @@ jobs:
         with:
           failWhenViolations: false
 
-  ValidateMetadataDeployment_Staging:
-    if: ${{ github.event.pull_request.base.ref == 'develop' }}
+  DeployMetadata_Staging:
+    if: ${{ github.event.pull_request.base.ref == 'develop' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
-    name: "Validate Metadata Deployment (Staging/QA)"
+    name: "Deploy Metadata (Staging/QA)"
     environment: "Staging"
 
     env:
-      DEPLOYMENT_MODE: "validateWithTests"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/develop"
+      DEPLOYMENT_MODE: "deploy"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:
@@ -54,7 +54,7 @@ jobs:
       - name: "Initialize"
         uses: ./.github/actions/init
 
-      - name: "Validate Deployment"
+      - name: "Deploy"
         uses: ./.github/actions/deployMetadata
         with:
           targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
@@ -62,16 +62,16 @@ jobs:
           deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
           targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
 
-  ValidateMetadataDeployment_UAT:
-    if: ${{ github.event.pull_request.base.ref == 'uat' }}
+  DeployMetadata_UAT:
+    if: ${{ github.event.pull_request.base.ref == 'uat' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
-    name: "Validate Metadata Deployment (UAT)"
+    name: "Deploy Metadata (UAT)"
     environment: "UAT"
 
     env:
-      DEPLOYMENT_MODE: "validateWithTests"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/uat"
+      DEPLOYMENT_MODE: "deploy"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:
@@ -83,7 +83,7 @@ jobs:
       - name: "Initialize"
         uses: ./.github/actions/init
 
-      - name: "Validate Deployment"
+      - name: "Deploy"
         uses: ./.github/actions/deployMetadata
         with:
           targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
@@ -91,16 +91,16 @@ jobs:
           deltaDeployment: ${{ env.DELTA_DEPLOYMENT }}
           targetDeltaCompareBranch: ${{ env.TARGET_DELTA_COMPARE_BRANCH }}
 
-  ValidateMetadataDeployment_Production:
-    if: ${{ github.event.pull_request.base.ref == 'master' }}
+  DeployMetadata_Production:
+    if: ${{ github.event.pull_request.base.ref == 'master' && github.event.pull_request.merged == true }}
     needs: PerformMetadataAnalysis
     runs-on: ubuntu-latest
-    name: "Validate Metadata Deployment (Production)"
+    name: "Deploy Metadata (Production)"
     environment: "Production"
 
     env:
-      DEPLOYMENT_MODE: "validateWithTests"
-      TARGET_DELTA_COMPARE_BRANCH: "origin/master"
+      DEPLOYMENT_MODE: "deploy"
+      TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
     steps:
@@ -112,7 +112,7 @@ jobs:
       - name: "Initialize"
         uses: ./.github/actions/init
 
-      - name: "Validate Deployment"
+      - name: "Deploy"
         uses: ./.github/actions/deployMetadata
         with:
           targetOrgAuthUrl: ${{ secrets.ORG_AUTH_URL }}
