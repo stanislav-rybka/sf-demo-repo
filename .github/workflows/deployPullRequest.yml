@@ -41,7 +41,7 @@ jobs:
     environment: "Staging"
 
     env:
-      DEPLOYMENT_MODE: "deploy"
+      DEPLOYMENT_MODE: "deployWithTests"
       TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
@@ -70,7 +70,7 @@ jobs:
     environment: "UAT"
 
     env:
-      DEPLOYMENT_MODE: "deploy"
+      DEPLOYMENT_MODE: "deployWithTests"
       TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
@@ -99,7 +99,7 @@ jobs:
     environment: "Production"
 
     env:
-      DEPLOYMENT_MODE: "deploy"
+      DEPLOYMENT_MODE: "deployWithTests"
       TARGET_DELTA_COMPARE_BRANCH: "HEAD~1"
       DELTA_DEPLOYMENT: true
 
