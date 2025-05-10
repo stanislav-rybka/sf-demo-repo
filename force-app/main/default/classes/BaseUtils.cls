@@ -4,4 +4,8 @@ public with sharing class BaseUtils {
         System.debug(message);
     }
 
+    public static void sampleMethod(String message) {
+        System.debug(message);
+    }
+
 }
